@@ -1,0 +1,106 @@
+// TradeJourney — Prisma schema
+// Postgres (Supabase / Neon). Run: npx prisma db push
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // for migrations via Supabase pooler
+}
+
+enum TradeSide {
+  LONG
+  SHORT
+}
+
+enum TradeStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum SessionName {
+  LONDON
+  NEW_YORK
+  ASIA
+  OUTSIDE
+}
+
+model User {
+  id        String   @id @default(cuid())
+  // Supabase auth.users.id (UUID). Set when integrating Supabase Auth.
+  authId    String?  @unique
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts        Account[]
+  journalEntries  JournalEntry[]
+}
+
+model Account {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  broker      String?
+  currency    String   @default("USD")
+  initialBalance Decimal @db.Decimal(18, 2) @default(0)
+  createdAt   DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades Trade[]
+
+  @@index([userId])
+}
+
+model Trade {
+  id          String      @id @default(cuid())
+  accountId   String
+  symbol      String
+  side        TradeSide
+  status      TradeStatus @default(CLOSED)
+
+  entryPrice  Decimal     @db.Decimal(18, 5)
+  exitPrice   Decimal?    @db.Decimal(18, 5)
+  quantity    Decimal     @db.Decimal(18, 5)
+
+  entryAt     DateTime
+  exitAt      DateTime?
+
+  pnl         Decimal?    @db.Decimal(18, 2)  // realized P&L
+  rMultiple   Decimal?    @db.Decimal(8, 2)   // R = pnl / risk
+  fees        Decimal     @db.Decimal(18, 2)  @default(0)
+
+  session     SessionName?
+  strategy    String?
+  notes       String?
+  screenshots String[]    @default([])
+  tags        String[]    @default([])
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  account     Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([entryAt])
+  @@index([session])
+}
+
+model JournalEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime @db.Date
+  mood      Int?     // 1-5
+  content   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+}
