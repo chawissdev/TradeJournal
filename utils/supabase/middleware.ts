@@ -11,29 +11,39 @@ export const createClient = (request: NextRequest) => {
     request: { headers: request.headers },
   });
 
-  const supabase = createServerClient(
-    supabaseUrl!,
-    supabaseKey!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet: CookieToSet[]) {
-          cookiesToSet.forEach(({ name, value }: CookieToSet) =>
-            request.cookies.set(name, value),
-          );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }: CookieToSet) =>
-            supabaseResponse.cookies.set(name, value, options),
-          );
+  // If env vars are missing (e.g. on Vercel without config), skip auth
+  // refresh so the page still loads. Set env vars in Vercel dashboard.
+  if (!supabaseUrl || !supabaseKey) {
+    return supabaseResponse;
+  }
+
+  try {
+    const supabase = createServerClient(
+      supabaseUrl,
+      supabaseKey,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet: CookieToSet[]) {
+            cookiesToSet.forEach(({ name, value }: CookieToSet) =>
+              request.cookies.set(name, value),
+            );
+            supabaseResponse = NextResponse.next({ request });
+            cookiesToSet.forEach(({ name, value, options }: CookieToSet) =>
+              supabaseResponse.cookies.set(name, value, options),
+            );
+          },
         },
       },
-    },
-  );
+    );
 
-  // IMPORTANT: must run to refresh the session cookie
-  void supabase.auth.getUser();
+    void supabase.auth.getUser();
+  } catch (e) {
+    // swallow — don't break the request
+    console.error("supabase middleware error:", e);
+  }
 
   return supabaseResponse;
 };
