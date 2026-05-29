@@ -1,14 +1,5 @@
-// Pure functions for trade math — used by the form preview and the server action
-
 export type Side = "LONG" | "SHORT";
 
-/**
- * Calculates realized P&L in dollars.
- * pnl = (exit - entry) * size * (LONG ? 1 : -1) - fees
- *
- * Leverage doesn't change P&L directly — it changes margin used.
- * It's still stored so we can compute ROI / risk later.
- */
 export function calcPnL({
   side,
   entry,
@@ -26,10 +17,6 @@ export function calcPnL({
   return (exit - entry) * size * direction - fees;
 }
 
-/**
- * R-multiple: how many "risk units" the trade won/lost.
- * Risk = |entry - stopLoss| * size
- */
 export function calcRMultiple({
   side,
   entry,

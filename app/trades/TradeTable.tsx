@@ -102,9 +102,9 @@ export default function TradeTable({ trades }: { trades: TradeRow[] }) {
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
+function Th({ children }: { children?: React.ReactNode }) {
   return <th className="px-3 py-2.5 text-left font-medium whitespace-nowrap">{children}</th>;
 }
-function Td({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <td className={cn("px-3 py-2.5 whitespace-nowrap", className)}>{children}</td>;
+function Td({ children, className, title }: { children?: React.ReactNode; className?: string; title?: string }) {
+  return <td title={title} className={cn("px-3 py-2.5 whitespace-nowrap", className)}>{children}</td>;
 }
