@@ -59,34 +59,46 @@ model Account {
 
 model Trade {
   id          String      @id @default(cuid())
-  accountId   String
+  accountId   String?
+  userId      String?     // Supabase auth.users.id
+
   symbol      String
   side        TradeSide
   status      TradeStatus @default(CLOSED)
 
-  entryPrice  Decimal     @db.Decimal(18, 5)
-  exitPrice   Decimal?    @db.Decimal(18, 5)
-  quantity    Decimal     @db.Decimal(18, 5)
+  // Sizing
+  leverage    Decimal     @db.Decimal(8, 2)   @default(1)
+  size        Decimal     @db.Decimal(18, 5)  // position size
 
-  entryAt     DateTime
-  exitAt      DateTime?
+  // Prices
+  entry       Decimal     @db.Decimal(18, 5)
+  exit        Decimal?    @db.Decimal(18, 5)
+  takeProfit  Decimal?    @db.Decimal(18, 5)  // TP
+  stopLoss    Decimal?    @db.Decimal(18, 5)  // SL
+  stopProfit  Decimal?    @db.Decimal(18, 5)  // SP
 
-  pnl         Decimal?    @db.Decimal(18, 2)  // realized P&L
-  rMultiple   Decimal?    @db.Decimal(8, 2)   // R = pnl / risk
+  // Results
+  pnl         Decimal?    @db.Decimal(18, 2)  // P&L in $
+  rMultiple   Decimal?    @db.Decimal(8, 2)
   fees        Decimal     @db.Decimal(18, 2)  @default(0)
 
+  // Strategy
+  plan        String?     // setup / plan write-up
+  notes       String?
   session     SessionName?
   strategy    String?
-  notes       String?
   screenshots String[]    @default([])
   tags        String[]    @default([])
 
+  entryAt     DateTime    @default(now())
+  exitAt      DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  account     Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account     Account?    @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
+  @@index([userId])
   @@index([entryAt])
   @@index([session])
 }
