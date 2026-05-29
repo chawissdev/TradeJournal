@@ -2,73 +2,94 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { requireAllowedUser } from "@/lib/authGuard";
 import { createClient } from "@/utils/supabase/server";
-import { calcPnL, calcRMultiple } from "@/lib/calc";
+import { buildTradePayload } from "./tradePayload.js";
 
 export async function addTrade(formData: FormData) {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
+  const auth = await requireAllowedUser(supabase);
 
-  const { data: { user } } = await supabase.auth.getUser();
-  // For dev without auth, we still allow insert — RLS will block it in prod.
-  // To test, disable RLS or sign in via magic link.
-
-  const f = (k: string) => formData.get(k);
-  const n = (k: string) => {
-    const v = f(k);
-    return v === null || v === "" ? null : Number(v);
-  };
-
-  const side = String(f("side")) as "LONG" | "SHORT";
-  const entry = Number(f("entry"));
-  const exit = n("exit");
-  const size = Number(f("size"));
-  const stopLoss = n("stop_loss");
-  const fees = Number(f("fees") ?? 0);
-
-  // Auto-calc PNL if user left it blank but provided exit
-  let pnl = n("pnl");
-  if (pnl === null && exit !== null) {
-    pnl = calcPnL({ side, entry, exit, size, fees });
-  }
-
-  let rMultiple: number | null = null;
-  if (exit !== null && stopLoss !== null) {
-    rMultiple = calcRMultiple({ side, entry, exit, stopLoss, size });
+  if (!auth.ok) {
+    return { ok: false, error: auth.error };
   }
 
   const row = {
-    user_id: user?.id ?? null,
-    symbol: String(f("symbol")).toUpperCase(),
-    side,
-    leverage: Number(f("leverage") ?? 1),
-    size,
-    entry,
-    exit,
-    take_profit: n("take_profit"),
-    stop_loss: stopLoss,
-    stop_profit: n("stop_profit"),
-    pnl,
-    r_multiple: rMultiple,
-    fees,
-    plan: f("plan") || null,
-    notes: f("notes") || null,
-    session: f("session") || null,
+    user_id: auth.user.id,
+    ...buildTradePayload(formData),
     entry_at: new Date().toISOString(),
   };
 
-  const { error } = await supabase.from("trades").insert(row);
+  const { data, error } = await supabase
+    .from("trades")
+    .insert(row)
+    .select(
+      "id, symbol, side, outcome, leverage, size, entry, exit, pnl, fees, holding_duration, chart_url, plan, notes, entry_at",
+    )
+    .single();
+
   if (error) {
     return { ok: false, error: error.message };
   }
 
   revalidatePath("/trades");
+  revalidatePath("/history");
+  revalidatePath("/");
+  return { ok: true, trade: data };
+}
+
+export async function updateTrade(formData: FormData) {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+  const auth = await requireAllowedUser(supabase);
+  const id = String(formData.get("id") ?? "");
+
+  if (!auth.ok) {
+    return { ok: false, error: auth.error };
+  }
+
+  if (!id) {
+    return { ok: false, error: "Missing trade id" };
+  }
+
+  const { error } = await supabase
+    .from("trades")
+    .update(buildTradePayload(formData))
+    .eq("id", id)
+    .eq("user_id", auth.user.id);
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/trades");
+  revalidatePath("/history");
+  revalidatePath("/");
   return { ok: true };
 }
 
 export async function deleteTrade(id: string) {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
-  await supabase.from("trades").delete().eq("id", id);
+  const auth = await requireAllowedUser(supabase);
+
+  if (!auth.ok) {
+    return { ok: false, error: auth.error };
+  }
+
+  const { error } = await supabase
+    .from("trades")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", auth.user.id);
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
   revalidatePath("/trades");
+  revalidatePath("/history");
+  revalidatePath("/");
+  return { ok: true };
 }

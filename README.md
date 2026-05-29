@@ -23,12 +23,12 @@ npm install
 
 # 2. Configure env
 cp .env.example .env
-# Fill in NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+# Fill in NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
 # DATABASE_URL, DIRECT_URL from your Supabase project
 
-# 3. Push schema to Supabase
-npx prisma db push
-npx prisma generate
+# 3. Create Supabase tables, indexes, and RLS policies
+# Run supabase/migrations/001_trades.sql in the Supabase SQL Editor.
+# If you change ALLOWED_EMAIL, update the account_settings RLS email in that SQL file too.
 
 # 4. Run dev server
 npm run dev
@@ -42,14 +42,14 @@ Open http://localhost:3000
 1. Create project at https://supabase.com (free tier)
 2. Copy connection strings from Project Settings → Database
 3. Copy anon key from Project Settings → API
-4. In SQL Editor, enable Row Level Security on all tables after `prisma db push`
+4. Run `supabase/migrations/001_trades.sql` in SQL Editor. It enables RLS for `trades` and `account_settings`.
 
 ### Vercel deploy
 ```bash
 npm i -g vercel
 vercel
 ```
-Add the four env vars from `.env.example` in the Vercel dashboard.
+Add the env vars from `.env.example` in the Vercel dashboard.
 
 ## Project structure
 

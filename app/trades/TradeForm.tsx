@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { addTrade } from "./actions";
+import type { TradeRow } from "./TradeTable";
 import { calcPnL } from "@/lib/calc";
 import { cn } from "@/lib/utils";
 
@@ -9,16 +10,24 @@ const inputClass =
   "w-full h-10 px-3 rounded-lg bg-white border border-ink-300/40 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500";
 
 const labelClass = "text-xs font-medium text-ink-500 mb-1.5 block";
+const outcomeOptions = ["TP", "SL", "SP"] as const;
 
-export default function TradeForm() {
+type Outcome = (typeof outcomeOptions)[number];
+
+export default function TradeForm({
+  onCreated,
+}: {
+  onCreated?: (trade: TradeRow) => void;
+} = {}) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [side, setSide] = useState<"LONG" | "SHORT">("LONG");
+  const [outcome, setOutcome] = useState<Outcome | "">("");
 
-  // Live PNL preview
   const [entry, setEntry] = useState<string>("");
   const [exit, setExit] = useState<string>("");
   const [size, setSize] = useState<string>("");
+  const [leverage, setLeverage] = useState<string>("1");
   const [fees, setFees] = useState<string>("0");
 
   const previewPnl =
@@ -34,14 +43,20 @@ export default function TradeForm() {
 
   const onSubmit = (formData: FormData) => {
     formData.set("side", side);
+    formData.set("outcome", outcome);
     setError(null);
     startTransition(async () => {
       const res = await addTrade(formData);
       if (!res?.ok) setError(res?.error ?? "Failed to save");
       else {
-        // Reset form
+        if (res.trade) onCreated?.(res.trade as TradeRow);
         (document.getElementById("trade-form") as HTMLFormElement)?.reset();
-        setEntry(""); setExit(""); setSize(""); setFees("0");
+        setEntry("");
+        setExit("");
+        setSize("");
+        setLeverage("1");
+        setFees("0");
+        setOutcome("");
       }
     });
   };
@@ -75,88 +90,142 @@ export default function TradeForm() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <input type="hidden" name="outcome" value={outcome} />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div>
           <label className={labelClass}>Symbol</label>
           <input name="symbol" required placeholder="BTCUSDT" className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Session</label>
-          <select name="session" className={inputClass} defaultValue="">
-            <option value="">—</option>
-            <option value="LONDON">London</option>
-            <option value="NEW_YORK">New York</option>
-            <option value="ASIA">Asia</option>
-            <option value="OUTSIDE">Outside</option>
-          </select>
-        </div>
-        <div>
           <label className={labelClass}>Leverage</label>
-          <input name="leverage" type="number" step="0.1" min="0" defaultValue="1" className={inputClass} />
-        </div>
-
-        <div>
-          <label className={labelClass}>Size</label>
           <input
-            name="size" required type="number" step="any" placeholder="0.0"
-            value={size} onChange={(e) => setSize(e.target.value)}
+            name="leverage"
+            type="number"
+            step="0.1"
+            min="0"
+            value={leverage}
+            onChange={(e) => setLeverage(e.target.value)}
             className={inputClass}
           />
         </div>
         <div>
+          <label className={labelClass}>Qty / Volume</label>
+          <input
+            name="size"
+            required
+            type="number"
+            step="any"
+            min="0"
+            placeholder="coin / contracts"
+            value={size}
+            onChange={(e) => setSize(e.target.value)}
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Outcome</label>
+          <div className="flex h-10 gap-1 rounded-lg bg-surface-muted p-1">
+            {outcomeOptions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={outcome === option}
+                onClick={() => setOutcome(outcome === option ? "" : option)}
+                className={cn(
+                  "flex-1 rounded-md text-xs font-semibold transition",
+                  outcome === option && option === "TP" && "bg-success-500 text-white",
+                  outcome === option && option === "SL" && "bg-danger-500 text-white",
+                  outcome === option && option === "SP" && "bg-brand-600 text-white",
+                  outcome !== option && "text-ink-500 hover:text-ink-700"
+                )}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
           <label className={labelClass}>Entry</label>
           <input
-            name="entry" required type="number" step="any" placeholder="0.0"
-            value={entry} onChange={(e) => setEntry(e.target.value)}
+            name="entry"
+            required
+            type="number"
+            step="any"
+            min="0"
+            placeholder="0.0"
+            value={entry}
+            onChange={(e) => setEntry(e.target.value)}
             className={inputClass}
           />
         </div>
         <div>
           <label className={labelClass}>Exit</label>
           <input
-            name="exit" type="number" step="any" placeholder="0.0"
-            value={exit} onChange={(e) => setExit(e.target.value)}
+            name="exit"
+            type="number"
+            step="any"
+            min="0"
+            placeholder="0.0"
+            value={exit}
+            onChange={(e) => setExit(e.target.value)}
             className={inputClass}
           />
         </div>
-
         <div>
-          <label className={labelClass}>TP — Take Profit</label>
-          <input name="take_profit" type="number" step="any" className={inputClass} />
+          <label className={labelClass}>Duration</label>
+          <input
+            name="holding_duration"
+            placeholder="7h 50m"
+            className={inputClass}
+          />
         </div>
-        <div>
-          <label className={labelClass}>SL — Stop Loss</label>
-          <input name="stop_loss" type="number" step="any" className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}>SP — Stop Profit</label>
-          <input name="stop_profit" type="number" step="any" className={inputClass} />
-        </div>
-
         <div>
           <label className={labelClass}>Fees</label>
           <input
-            name="fees" type="number" step="any" defaultValue="0"
-            value={fees} onChange={(e) => setFees(e.target.value)}
+            name="fees"
+            type="number"
+            step="any"
+            min="0"
+            value={fees}
+            onChange={(e) => setFees(e.target.value)}
             className={inputClass}
           />
         </div>
-        <div className="col-span-2">
-          <label className={labelClass}>
-            PNL $ <span className="text-ink-300">(auto from entry/exit/size if blank)</span>
-          </label>
-          <input
-            name="pnl" type="number" step="any"
-            placeholder={previewPnl !== null ? `auto: ${previewPnl.toFixed(2)}` : "0.00"}
-            className={inputClass}
-          />
+        <div>
+          <label className={labelClass}>Auto PNL $</label>
+          <div
+            className={cn(
+              "flex h-10 items-center rounded-lg border border-ink-300/40 bg-surface-subtle px-3 text-sm font-semibold",
+              previewPnl === null && "text-ink-500",
+              previewPnl !== null && previewPnl >= 0 && "text-success-700",
+              previewPnl !== null && previewPnl < 0 && "text-danger-700"
+            )}
+          >
+            {previewPnl !== null
+              ? `${previewPnl >= 0 ? "+" : ""}$${previewPnl.toFixed(2)}`
+              : "$0.00"}
+          </div>
         </div>
       </div>
 
       <div>
-        <label className={labelClass}>PLAN — setup / thesis</label>
+        <label className={labelClass}>Chart link (TradingView)</label>
+        <input
+          name="chart_url"
+          type="url"
+          inputMode="url"
+          placeholder="https://www.tradingview.com/x/toWxfGVv/"
+          className={inputClass}
+        />
+      </div>
+
+      <div>
+        <label className={labelClass}>PLAN - setup / thesis</label>
         <textarea
-          name="plan" rows={3}
+          name="plan"
+          rows={3}
           placeholder="e.g. Break and retest of London high, target prior day VAH, invalidation below 65,200"
           className={cn(inputClass, "h-auto py-2 resize-y")}
         />
@@ -165,7 +234,8 @@ export default function TradeForm() {
       <div>
         <label className={labelClass}>Notes</label>
         <textarea
-          name="notes" rows={2}
+          name="notes"
+          rows={2}
           placeholder="post-trade reflection, screenshot, what went well / poorly"
           className={cn(inputClass, "h-auto py-2 resize-y")}
         />

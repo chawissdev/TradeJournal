@@ -1,4 +1,4 @@
-// TradeJourney — Prisma schema
+// TradeJourney - Prisma schema
 // Postgres (Supabase / Neon). Run: npx prisma db push
 
 generator client {
@@ -22,11 +22,10 @@ enum TradeStatus {
   CANCELLED
 }
 
-enum SessionName {
-  LONDON
-  NEW_YORK
-  ASIA
-  OUTSIDE
+enum TradeOutcome {
+  TP
+  SL
+  SP
 }
 
 model User {
@@ -43,13 +42,13 @@ model User {
 }
 
 model Account {
-  id          String   @id @default(cuid())
-  userId      String
-  name        String
-  broker      String?
-  currency    String   @default("USD")
-  initialBalance Decimal @db.Decimal(18, 2) @default(0)
-  createdAt   DateTime @default(now())
+  id             String   @id @default(cuid())
+  userId         String
+  name           String
+  broker         String?
+  currency       String   @default("USD")
+  initialBalance Decimal  @db.Decimal(18, 2) @default(0)
+  createdAt      DateTime @default(now())
 
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   trades Trade[]
@@ -58,49 +57,48 @@ model Account {
 }
 
 model Trade {
-  id          String      @id @default(cuid())
-  accountId   String?
-  userId      String?     // Supabase auth.users.id
+  id        String       @id @default(cuid())
+  accountId String?
+  userId    String?      // Supabase auth.users.id
 
-  symbol      String
-  side        TradeSide
-  status      TradeStatus @default(CLOSED)
+  symbol  String
+  side    TradeSide
+  status  TradeStatus  @default(CLOSED)
+  outcome TradeOutcome?
 
   // Sizing
-  leverage    Decimal     @db.Decimal(8, 2)   @default(1)
-  size        Decimal     @db.Decimal(18, 5)  // position size
+  leverage Decimal @db.Decimal(8, 2)  @default(1)
+  size     Decimal @db.Decimal(18, 5) // margin size
 
   // Prices
-  entry       Decimal     @db.Decimal(18, 5)
-  exit        Decimal?    @db.Decimal(18, 5)
-  takeProfit  Decimal?    @db.Decimal(18, 5)  // TP
-  stopLoss    Decimal?    @db.Decimal(18, 5)  // SL
-  stopProfit  Decimal?    @db.Decimal(18, 5)  // SP
+  entry Decimal  @db.Decimal(18, 5)
+  exit  Decimal? @db.Decimal(18, 5)
 
   // Results
-  pnl         Decimal?    @db.Decimal(18, 2)  // P&L in $
-  rMultiple   Decimal?    @db.Decimal(8, 2)
-  fees        Decimal     @db.Decimal(18, 2)  @default(0)
+  pnl       Decimal? @db.Decimal(18, 2) // P&L in $
+  rMultiple Decimal? @db.Decimal(8, 2)
+  fees      Decimal  @db.Decimal(18, 2) @default(0)
+  holdingDuration String?
 
   // Strategy
-  plan        String?     // setup / plan write-up
+  chartUrl    String?  @map("chart_url")
+  plan        String?
   notes       String?
-  session     SessionName?
   strategy    String?
-  screenshots String[]    @default([])
-  tags        String[]    @default([])
+  screenshots String[] @default([])
+  tags        String[] @default([])
 
-  entryAt     DateTime    @default(now())
-  exitAt      DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  entryAt   DateTime @default(now())
+  exitAt    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  account     Account?    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account Account? @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
   @@index([userId])
   @@index([entryAt])
-  @@index([session])
+  @@index([outcome])
 }
 
 model JournalEntry {

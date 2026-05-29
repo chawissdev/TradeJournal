@@ -9,12 +9,15 @@
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test:calc": "node --test lib/calc.test.mjs",
+    "test:trades": "node --test lib/calc.test.mjs app/trades/tradePayload.test.mjs",
+    "test:dashboard": "node --test lib/dashboardMetrics.test.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
-    "@supabase/ssr": "^0.5.1",
-    "@supabase/supabase-js": "^2.45.4",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.106.2",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.451.0",

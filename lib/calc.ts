@@ -11,8 +11,11 @@ export function calcPnL({
   entry: number;
   exit: number;
   size: number;
+  leverage?: number;
   fees?: number;
 }): number {
+  if (entry <= 0) return -fees;
+
   const direction = side === "LONG" ? 1 : -1;
   return (exit - entry) * size * direction - fees;
 }
@@ -29,7 +32,10 @@ export function calcRMultiple({
   exit: number;
   stopLoss: number;
   size: number;
+  leverage?: number;
 }): number | null {
+  if (entry <= 0) return null;
+
   const risk = Math.abs(entry - stopLoss) * size;
   if (risk === 0) return null;
   const pnl = calcPnL({ side, entry, exit, size });

@@ -1,20 +1,45 @@
+import { cookies } from "next/headers";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 import StatCard from "@/components/StatCard";
-import SessionsPanel from "@/components/SessionsPanel";
+import OutcomePanel from "@/components/OutcomePanel";
 import CalendarPanel from "@/components/CalendarPanel";
-import { Download, Filter } from "lucide-react";
+import { buildDashboardMetrics, type DashboardTrade } from "@/lib/dashboardMetrics";
+import { formatCurrency, formatPercent } from "@/lib/utils";
+import { createClient } from "@/utils/supabase/server";
 
-// Mock sparkline data — swap with API result
-const series = (seed: number) =>
-  Array.from({ length: 30 }, (_, i) => ({
-    v: 50 + Math.sin(i / 2 + seed) * 12 + Math.cos(i / 3 + seed) * 8,
-  }));
+export const dynamic = "force-dynamic";
 
-export default function DashboardPage() {
+const numberOrZero = (value: unknown) => {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? number : 0;
+};
+
+export default async function DashboardPage() {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+
+  const [tradesResult, accountResult] = await Promise.all([
+    supabase
+      .from("trades")
+      .select("id, outcome, pnl, entry_at")
+      .order("entry_at", { ascending: false })
+      .limit(500),
+    supabase
+      .from("account_settings")
+      .select("balance")
+      .eq("id", "main")
+      .maybeSingle(),
+  ]);
+
+  const trades = (tradesResult.data ?? []) as DashboardTrade[];
+  const metrics = buildDashboardMetrics(trades, new Date());
+  const balance = numberOrZero(accountResult.data?.balance);
+  const dashboardError = tradesResult.error?.message ?? accountResult.error?.message;
+
   return (
     <div className="flex">
-      <Sidebar balance={315000.12} />
+      <Sidebar balance={balance} />
 
       <main className="flex-1 min-w-0">
         <TopBar />
@@ -22,28 +47,56 @@ export default function DashboardPage() {
         <div className="px-6 pb-10">
           <div className="bg-white rounded-2xl border border-ink-300/40 p-6 mb-6">
             <div className="flex items-center justify-between mb-5">
-              <h1 className="text-2xl font-semibold text-ink-900">Dashboard</h1>
-              <div className="flex items-center gap-2">
-                <button className="w-9 h-9 grid place-items-center rounded-lg border border-ink-300/40 hover:bg-surface-muted">
-                  <Filter size={16} className="text-ink-700" />
-                </button>
-                <button className="flex items-center gap-2 px-3 h-9 rounded-lg border border-ink-300/40 hover:bg-surface-muted text-sm">
-                  <Download size={16} className="text-ink-700" /> Export stats
-                </button>
+              <div>
+                <h1 className="text-2xl font-semibold text-ink-900">Dashboard</h1>
+                <p className="mt-1 text-sm text-ink-500">Performance from your saved trades.</p>
               </div>
             </div>
 
+            {dashboardError && (
+              <div className="mb-5 text-sm text-danger-700 bg-danger-50 border border-danger-500/20 rounded-lg p-3">
+                Could not load dashboard data: {dashboardError}. Run the SQL migration first.
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-              <StatCard label="NET P&L"      value="$18.5k"  badge={22} data={series(1)} color="blue" />
-              <StatCard label="Day Win"      value="50.00%" badge={22} data={series(2)} color="blue" />
-              <StatCard label="AVG win trade"  value="0.00%" badge={0}  data={series(3)} color="green" />
-              <StatCard label="AVG loss trade" value="0.00%" badge={22} data={series(4)} color="red" />
+              <StatCard
+                label="NET P&L"
+                value={formatCurrency(metrics.netPnl)}
+                badge={metrics.totalTrades}
+                data={metrics.pnlSeries}
+                color={metrics.netPnl < 0 ? "red" : "blue"}
+              />
+              <StatCard
+                label="Win Rate"
+                value={formatPercent(metrics.winRate)}
+                badge={`${metrics.totalTrades} trades`}
+                data={metrics.pnlSeries}
+                color="blue"
+              />
+              <StatCard
+                label="AVG win trade"
+                value={formatCurrency(metrics.avgWin)}
+                data={metrics.pnlSeries}
+                color="green"
+              />
+              <StatCard
+                label="AVG loss trade"
+                value={formatCurrency(metrics.avgLoss)}
+                data={metrics.pnlSeries}
+                color="red"
+              />
             </div>
           </div>
 
           <div className="space-y-6">
-            <SessionsPanel />
-            <CalendarPanel />
+            <OutcomePanel outcomes={metrics.outcomes} />
+            <CalendarPanel
+              monthLabel={metrics.calendar.monthLabel}
+              startPad={metrics.calendar.startPad}
+              days={metrics.calendar.days}
+              weekTotals={metrics.calendar.weekTotals}
+            />
           </div>
         </div>
       </main>
